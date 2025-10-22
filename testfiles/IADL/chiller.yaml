@@ -1,0 +1,36 @@
+
+asset_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e13
+name: Industrial Chiller
+description: High-capacity industrial chiller for process cooling.
+model_ref: "@/assets/industrial_chiller.usd@</Chiller>"
+units:
+  length: m
+default_xform:
+  translation: [0.0, 0.0, 0.0]
+  rotation: [0.0, 0.0, 0.0]
+  scale: [1.0, 1.0, 1.0]
+tags:
+  - tag_id: 018c3f7e-9b3c-7d4e-8f5a-6b7c8d9e0f23
+    name: WaterInletTemp
+    kind: sensor
+    eu_unit: "°C"
+    attachment_strategy: by_position
+    localPosition: [-1.0, 0.0, 1.2]
+  - tag_id: 018c3f7e-9b3c-7d4e-8f5a-6b7c8d9e0f24
+    name: WaterOutletTemp
+    kind: sensor
+    eu_unit: "°C"
+    attachment_strategy: by_position
+    localPosition: [1.0, 0.0, 1.2]
+  - tag_id: 018c3f7e-9b3c-7d4e-8f5a-6b7c8d9e0f25
+    name: CompressorStatus
+    kind: indicator
+    eu_unit: ""
+    attachment_strategy: by_position
+    localPosition: [0.0, 0.5, 1.5]
+metadata:
+  author: Michael Lin
+  version: 1.0.0
+  created_at: 2025-10-22T08:20:00Z
+  updated_at: 2025-10-22T08:20:00Z
+

@@ -1,0 +1,64 @@
+
+fdl_version: 0.1
+units:
+  length: m
+  angle: deg
+  up_axis: Z
+  handedness: right
+site:
+  name: LNG Power Plant Delta
+  site_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e26
+  location: {latitude: 29.7604, longitude: -95.3698, altitude: 5.0}
+  areas:
+    - name: Gas Turbine Hall
+      area_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e27
+      type: production
+      instances:
+        - instance_id: gas_turbine_001
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e11 # Using Generic PLC as placeholder for Gas Turbine
+          transform:
+            translation: [20.0, 10.0, 0.0]
+            rotation: [0.0, 0.0, 0.0]
+            scale: [1.0, 1.0, 1.0]
+        - instance_id: rockwell_plc_gt_001
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e12 # Rockwell ControlLogix PLC
+          transform:
+            translation: [18.0, 12.0, 1.0]
+            rotation: [0.0, 0.0, 0.0]
+            scale: [1.0, 1.0, 1.0]
+      connections:
+        - connection_id: gt_control_network
+          type: cable
+          from_instance: gas_turbine_001
+          from_port: "ControlPort"
+          to_instance: rockwell_plc_gt_001
+          to_port: "EthernetPort"
+          path:
+            points: [[20.0, 10.0, 1.5], [19.0, 11.0, 1.5], [18.0, 12.0, 1.5]]
+    - name: LNG Storage Area
+      area_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e28
+      type: storage
+      instances:
+        - instance_id: lng_tank_001
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e15 # Using Bulk Gas as placeholder for LNG Tank
+          transform:
+            translation: [50.0, 20.0, 0.0]
+            rotation: [0.0, 0.0, 0.0]
+            scale: [1.0, 1.0, 1.0]
+global_constraints:
+  scaling_constraints:
+    allow_scaling: false
+    allow_non_uniform_scaling: false
+  collision_detection:
+    enabled: true
+    clearance_distance: 2.0 # meters
+batch_layouts:
+  - layout_id: cooling_tower_circle
+    type: circle
+    ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e13 # Using Chiller as placeholder for Cooling Tower
+    count: 6
+    center: [30.0, 30.0, 0.0]
+    radius: 10.0
+    start_angle: 0.0
+    naming_prefix: CoolingTower
+

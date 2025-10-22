@@ -1,0 +1,71 @@
+
+fdl_version: 0.1
+units:
+  length: m
+  angle: deg
+  up_axis: Z
+  handedness: right
+site:
+  name: Semiconductor Fab 1
+  site_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e20
+  location: {latitude: 34.0522, longitude: -118.2437, altitude: 10.0}
+  areas:
+    - name: Cleanroom A
+      area_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e21
+      type: production
+      instances:
+        - instance_id: upw_system_001
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e14 # Ultra Pure Water System
+          transform:
+            translation: [5.0, 5.0, 0.0]
+            rotation: [0.0, 0.0, 90.0]
+            scale: [1.0, 1.0, 1.0]
+        - instance_id: bulk_gas_001
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e15 # Bulk Gas Delivery System
+          transform:
+            translation: [15.0, 5.0, 0.0]
+            rotation: [0.0, 0.0, 0.0]
+            scale: [1.0, 1.0, 1.0]
+      connections:
+        - connection_id: upw_to_fab_water_line
+          type: pipe
+          from_instance: upw_system_001
+          from_port: "Outlet"
+          to_instance: bulk_gas_001 # Placeholder, assuming connection to another system
+          to_port: "Inlet"
+          path:
+            points: [[5.0, 5.0, 1.0], [10.0, 5.0, 1.0], [15.0, 5.0, 1.0]]
+    - name: Utility Area
+      area_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e22
+      type: utility
+      instances:
+        - instance_id: chiller_001
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e13 # Industrial Chiller
+          transform:
+            translation: [20.0, 10.0, 0.0]
+            rotation: [0.0, 0.0, 0.0]
+            scale: [1.0, 1.0, 1.0]
+        - instance_id: schneider_ups_001
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e0f # Schneider UPS
+          transform:
+            translation: [25.0, 10.0, 0.0]
+            rotation: [0.0, 0.0, 0.0]
+            scale: [1.0, 1.0, 1.0]
+global_constraints:
+  scaling_constraints:
+    allow_scaling: false
+    allow_non_uniform_scaling: false
+  collision_detection:
+    enabled: true
+    clearance_distance: 0.5 # meters
+batch_layouts:
+  - layout_id: plc_grid_layout
+    type: grid
+    ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e12 # Rockwell ControlLogix PLC
+    rows: 2
+    columns: 3
+    spacing_x: 2.0
+    spacing_y: 1.5
+    origin: [10.0, 15.0, 0.0]
+    naming_prefix: RockwellPLC
+
