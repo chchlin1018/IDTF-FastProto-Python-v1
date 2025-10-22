@@ -29,6 +29,7 @@ from .event_monitor import EventMonitorWidget
 from .tsdb_viewer import TSDBViewerWidget
 from .tag_mapping_editor import TagMappingEditorWidget
 from .queue_monitor import QueueMonitorWidget
+from .realtime_tag_monitor import RealtimeTagMonitorWidget
 
 
 class ServantControlWidget(QWidget):
@@ -329,9 +330,13 @@ class NDHControlPanelMainWindow(QMainWindow):
         self.tag_mapping_editor = TagMappingEditorWidget(self.mapping_service)
         self.tab_widget.addTab(self.tag_mapping_editor, "Tag Mapping Editor")
         
-        # Queue Monitor tab (NEW)
+        # Queue Monitor tab
         self.queue_monitor = QueueMonitorWidget(self.queue_manager)
         self.tab_widget.addTab(self.queue_monitor, "Queue Monitor")
+        
+        # Realtime Tag Monitor tab (NEW)
+        self.realtime_tag_monitor = RealtimeTagMonitorWidget(self.ndh_service, self.tsdb)
+        self.tab_widget.addTab(self.realtime_tag_monitor, "Realtime Tag Monitor")
         
         splitter.addWidget(self.tab_widget)
         
