@@ -768,9 +768,8 @@ class SQLiteTSDB(ITSDB):
 ### P0 (立即實作)
 - ✅ Tags 模組
 - ✅ IADL models
-- ⏳ IADL parser, validator
-- ⏳ FDL models, parser, validator
-- ⏳ FDL batch_layout
+- [x] IADL parser, validator
+- [x] FDL models, parser, validator, batch_layout
 
 ### P1 (短期實作，1-2 週)
 - ⏳ USD Kit (xform, units, io)
