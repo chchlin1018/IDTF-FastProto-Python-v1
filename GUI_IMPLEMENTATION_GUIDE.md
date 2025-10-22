@@ -209,6 +209,8 @@ class TagDialog(QDialog):
 
 ## 2. FDL Designer
 
+**狀態**: ✅ **已完成**
+
 ### 2.1 應用程式架構
 
 ```
