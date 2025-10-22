@@ -1,0 +1,40 @@
+# IDTF FastProto Python Requirements
+
+# GUI Framework
+PySide6>=6.6.0
+
+# OpenUSD
+usd-core>=23.11
+
+# Data Formats
+PyYAML>=6.0
+jsonschema>=4.20.0
+
+# Geometry & Collision
+trimesh>=4.0.0
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Event Bus (Optional)
+pyzmq>=25.1.0
+paho-mqtt>=1.6.1
+
+# TSDB (Optional)
+duckdb>=0.9.0
+
+# FBX Conversion (Blender Python API - external)
+# Note: Blender Python API needs to be installed separately
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Code Quality
+black>=23.12.0
+flake8>=6.1.0
+mypy>=1.7.0
+
+# Utilities
+python-dateutil>=2.8.2
+uuid7>=0.1.0
+
