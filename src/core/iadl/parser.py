@@ -52,10 +52,10 @@ def parse_iadl_string(content: str, format: str = 'yaml') -> Asset:
         Asset: Parsed asset
     
     Example:
-        >>> # from src.core.iadl.parser import parse_iadl_string
-        >>> # yaml_content = """asset_id: 123..."""
-        >>> # asset = parse_iadl_string(yaml_content, format='yaml')
-        >>> # print(asset.name)
+        from src.core.iadl.parser import parse_iadl_string
+        yaml_content = 'asset_id: 123...'
+        asset = parse_iadl_string(yaml_content, format='yaml')
+        print(asset.name)
     """
     if format == 'yaml':
         data = yaml.safe_load(content)

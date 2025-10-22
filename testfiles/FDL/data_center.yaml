@@ -1,0 +1,63 @@
+
+fdl_version: 0.1
+units:
+  length: m
+  angle: deg
+  up_axis: Z
+  handedness: right
+site:
+  name: Data Center Alpha
+  site_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e23
+  location: {latitude: 37.7749, longitude: -122.4194, altitude: 20.0}
+  areas:
+    - name: Server Hall 1
+      area_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e24
+      type: production
+      instances:
+        - instance_id: schneider_ups_main_01
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e0f # Schneider UPS
+          transform:
+            translation: [10.0, 2.0, 0.0]
+            rotation: [0.0, 0.0, 0.0]
+            scale: [1.0, 1.0, 1.0]
+        - instance_id: scada_system_01
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e10 # SCADA System
+          transform:
+            translation: [0.0, 0.0, 2.0]
+            rotation: [0.0, 0.0, 0.0]
+            scale: [1.0, 1.0, 1.0]
+      connections:
+        - connection_id: ups_to_scada_power
+          type: cable
+          from_instance: schneider_ups_main_01
+          from_port: "Output"
+          to_instance: scada_system_01
+          to_port: "Input"
+          path:
+            points: [[10.0, 2.0, 0.8], [5.0, 2.0, 0.8], [0.0, 0.0, 2.0]]
+    - name: Cooling Plant
+      area_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e25
+      type: utility
+      instances:
+        - instance_id: chiller_main_01
+          ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e13 # Industrial Chiller
+          transform:
+            translation: [20.0, 15.0, 0.0]
+            rotation: [0.0, 0.0, 0.0]
+            scale: [1.0, 1.0, 1.0]
+global_constraints:
+  scaling_constraints:
+    allow_scaling: false
+    allow_non_uniform_scaling: false
+  collision_detection:
+    enabled: true
+    clearance_distance: 1.0 # meters
+batch_layouts:
+  - layout_id: server_rack_line
+    type: line
+    ref_asset: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e11 # Generic PLC (as server rack placeholder)
+    count: 10
+    start: [5.0, 10.0, 0.0]
+    end: [25.0, 10.0, 0.0]
+    naming_prefix: ServerRack
+

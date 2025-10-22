@@ -1,0 +1,30 @@
+
+asset_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e12
+name: Rockwell ControlLogix PLC
+description: Rockwell Automation ControlLogix Programmable Automation Controller.
+model_ref: "@/assets/rockwell_controllogix.usd@</RockwellPLC>"
+units:
+  length: m
+default_xform:
+  translation: [0.0, 0.0, 0.0]
+  rotation: [0.0, 0.0, 0.0]
+  scale: [1.0, 1.0, 1.0]
+tags:
+  - tag_id: 018c3f7e-9b3c-7d4e-8f5a-6b7c8d9e0f21
+    name: ControllerStatus
+    kind: indicator
+    eu_unit: ""
+    attachment_strategy: by_position
+    localPosition: [0.0, 0.0, 0.4]
+  - tag_id: 018c3f7e-9b3c-7d4e-8f5a-6b7c8d9e0f22
+    name: ProcessorLoad
+    kind: sensor
+    eu_unit: '%'
+    attachment_strategy: by_position
+    localPosition: [0.2, 0.0, 0.3]
+metadata:
+  author: Michael Lin
+  version: 1.0.0
+  created_at: 2025-10-22T08:15:00Z
+  updated_at: 2025-10-22T08:15:00Z
+

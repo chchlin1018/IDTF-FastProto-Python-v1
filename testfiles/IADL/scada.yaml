@@ -1,0 +1,30 @@
+
+asset_id: 018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e10
+name: SCADA System
+description: Supervisory Control and Data Acquisition system for plant-wide monitoring.
+model_ref: "@/assets/scada_system.usd@</SCADASystem>"
+units:
+  length: m
+default_xform:
+  translation: [0.0, 0.0, 0.0]
+  rotation: [0.0, 0.0, 0.0]
+  scale: [1.0, 1.0, 1.0]
+tags:
+  - tag_id: 018c3f7e-9b3c-7d4e-8f5a-6b7c8d9e0f1d
+    name: SystemStatus
+    kind: indicator
+    eu_unit: ""
+    attachment_strategy: by_position
+    localPosition: [0.0, 0.0, 1.5]
+  - tag_id: 018c3f7e-9b3c-7d4e-8f5a-6b7c8d9e0f1e
+    name: AlarmCount
+    kind: sensor
+    eu_unit: Count
+    attachment_strategy: by_position
+    localPosition: [0.5, 0.0, 1.4]
+metadata:
+  author: Michael Lin
+  version: 1.0.0
+  created_at: 2025-10-22T08:05:00Z
+  updated_at: 2025-10-22T08:05:00Z
+
