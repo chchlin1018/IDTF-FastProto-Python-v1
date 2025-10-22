@@ -50,7 +50,8 @@ class AssetLibraryService:
             asset = parse_iadl_file(file_path)
             
             if self.auto_validate:
-                is_valid, errors = self.validator.validate(asset)
+                is_valid = self.validator.validate_asset(asset)
+                errors = self.validator.get_errors()
                 if not is_valid:
                     print(f"Asset validation failed: {errors}")
                     return None
@@ -99,7 +100,8 @@ class AssetLibraryService:
             bool: True if added successfully, False otherwise
         """
         if self.auto_validate:
-            is_valid, errors = self.validator.validate(asset)
+            is_valid = self.validator.validate_asset(asset)
+            errors = self.validator.get_errors()
             if not is_valid:
                 print(f"Asset validation failed: {errors}")
                 return False

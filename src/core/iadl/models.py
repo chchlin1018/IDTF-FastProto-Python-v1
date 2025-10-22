@@ -76,6 +76,14 @@ class Transform:
                     f"scale must be [s, s, s], got {self.scale}"
                 )
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, List[float]]) -> "Transform":
+        return cls(
+            translation=data.get("translation", [0.0, 0.0, 0.0]),
+            rotation=data.get("rotation", [0.0, 0.0, 0.0]),
+            scale=data.get("scale", [1.0, 1.0, 1.0]),
+        )
+
 
 @dataclass
 class Metadata:

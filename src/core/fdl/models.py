@@ -144,10 +144,10 @@ class Connection:
     """
     connection_id: str
     type: str
-    name: Optional[str] = None
     from_instance: str
-    from_port: Optional[str] = None
     to_instance: str
+    name: Optional[str] = None
+    from_port: Optional[str] = None
     to_port: Optional[str] = None
     path: Optional[Dict[str, Any]] = None # e.g., {"type": "line", "points": [[x,y,z], ...]}
     properties: Dict[str, Any] = field(default_factory=dict)
@@ -284,7 +284,29 @@ class FDL:
         if site_data:
             areas = []
             for area_data in site_data.get("areas", []):
-                instances = [AssetInstance(**inst_data) for inst_data in area_data.get("instances", [])]
+                instances = []
+                for inst_data in area_data.get("instances", []):
+                    # Handle transform conversion
+                    transform_data = inst_data.get("transform", {})
+                    if isinstance(transform_data, dict):
+                        transform = Transform(
+                            translation=transform_data.get("translation", [0.0, 0.0, 0.0]),
+                            rotation=transform_data.get("rotation", [0.0, 0.0, 0.0]),
+                            scale=transform_data.get("scale", [1.0, 1.0, 1.0])
+                        )
+                    else:
+                        transform = transform_data
+                    
+                    instances.append(AssetInstance(
+                        instance_id=inst_data["instance_id"],
+                        ref_asset=inst_data["ref_asset"],
+                        name=inst_data.get("name"),
+                        transform=transform,
+                        tag_overrides=inst_data.get("tag_overrides", []),
+                        collision_bounds=inst_data.get("collision_bounds"),
+                        constraints=inst_data.get("constraints", {}),
+                        metadata=inst_data.get("metadata", {})
+                    ))
                 connections = [Connection(**conn_data) for conn_data in area_data.get("connections", [])]
                 areas.append(Area(
                     name=area_data["name"],
@@ -300,7 +322,26 @@ class FDL:
                 areas=areas
             )
         
-        batch_layouts = [BatchLayout(**layout_data) for layout_data in data.get("batch_layouts", [])]
+        # Parse batch_layouts with special handling for params
+        batch_layouts = []
+        for layout_data in data.get("batch_layouts", []):
+            # Extract known fields
+            layout_id = layout_data.get("layout_id")
+            layout_type = layout_data.get("type")
+            ref_asset = layout_data.get("ref_asset")
+            naming_prefix = layout_data.get("naming_prefix", "Asset")
+            
+            # All other fields go into params
+            params = {k: v for k, v in layout_data.items() 
+                     if k not in ["layout_id", "type", "ref_asset", "naming_prefix"]}
+            
+            batch_layouts.append(BatchLayout(
+                layout_id=layout_id,
+                type=layout_type,
+                ref_asset=ref_asset,
+                naming_prefix=naming_prefix,
+                params=params
+            ))
 
         return cls(
             fdl_version=data.get("fdl_version", "0.1"),
