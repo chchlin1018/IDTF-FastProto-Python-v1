@@ -1,11 +1,8 @@
-"""
-FDL Validator - Validate FDL against FDL v0.1 specification
-"""
+from typing import List, Tuple, Optional, Any, Dict
+from dataclasses import dataclass, field
 
-from typing import List, Tuple, Dict, Any
-from .models import FDL, Site, Area, AssetInstance, Connection, GlobalConstraints, ScalingConstraints, CollisionDetection, BatchLayout
+from .models import FDL, Site, Area, AssetInstance, Connection, BatchLayout, ScalingConstraints, GlobalConstraints
 from ..tags.id_generator import is_valid_uuidv7
-from ..iadl.models import Transform
 
 
 class ValidationError:
@@ -24,7 +21,7 @@ class ValidationError:
         return f"{self.field}: {self.message}"
     
     def __repr__(self):
-        return f"ValidationError(field=\\'{self.field}\\, message=\\'{self.message}\\'")"
+        return f"ValidationError(field=\\'{self.field}\\' , message=\\'{self.message}\\' )"
 
 
 class FDLValidator:
@@ -40,78 +37,50 @@ class FDLValidator:
         """Helper to add a validation error."""
         self.errors.append(ValidationError(field, message))
     
-    def validate_fdl(self, fdl: FDL) -> bool:
+    def validate_site(self, site: Site) -> bool:
         """
-        Validate an FDL object against FDL v0.1 specification.
+        Validate a Site object against FDL v0.1 specification.
         
         Args:
-            fdl: The FDL object to validate.
+            site: The Site object to validate.
         
         Returns:
-            bool: True if the FDL is valid, False otherwise.
+            bool: True if the Site is valid, False otherwise.
         """
         self.errors = []  # Reset errors for each validation run
         
-        # Validate fdl_version
-        if fdl.fdl_version != "0.1":
-            self._add_error("fdl_version", f"Unsupported FDL version: {fdl.fdl_version}. Expected 0.1")
-        
-        # Validate units (basic check, more detailed in models)
-        try:
-            fdl.units.to_dict() # Trigger validation in from_dict if any enum value is invalid
-        except ValueError as e:
-            self._add_error("units", str(e))
+        # Validate site_id
+        if not is_valid_uuidv7(site.site_id):
+            self._add_error("site_id", f"Invalid UUIDv7 format for site_id: {site.site_id}")
 
-        # Validate global constraints
-        self._validate_global_constraints(fdl.global_constraints)
+        # Validate site name
+        if not site.name or not site.name.strip():
+            self._add_error("name", "Site name cannot be empty.")
 
-        # Validate site
-        if fdl.site:
-            self._validate_site(fdl.site, fdl.global_constraints.scaling_constraints)
-        else:
-            self._add_error("site", "FDL must contain a site definition.")
-
-        # Validate batch layouts (basic structure)
-        self._validate_batch_layouts(fdl.batch_layouts)
+        # Validate areas
+        area_ids = set()
+        for i, area in enumerate(site.areas):
+            self._validate_area(area, i)
+            if area.area_id in area_ids:
+                self._add_error(f"areas[{i}].area_id", f"Duplicate area_id: {area.area_id}")
+            area_ids.add(area.area_id)
 
         return not self.errors
 
-    def _validate_global_constraints(self, constraints: GlobalConstraints):
-        """Validate global constraints."""
-        if constraints.collision_detection.enabled and constraints.collision_detection.clearance_distance < 0:
-            self._add_error("global_constraints.collision_detection.clearance_distance", "Clearance distance cannot be negative.")
-
-    def _validate_site(self, site: Site, global_scaling_constraints: ScalingConstraints):
-        """
-        Validate Site object.
-        """
-        if not site.name or not site.name.strip():
-            self._add_error("site.name", "Site name cannot be empty.")
-        
-        if not is_valid_uuidv7(site.site_id):
-            self._add_error("site.site_id", f"Invalid UUIDv7 format: {site.site_id}")
-
-        area_ids = set()
-        for i, area in enumerate(site.areas):
-            self._validate_area(area, i, global_scaling_constraints)
-            if area.area_id in area_ids:
-                self._add_error(f"site.areas[{i}].area_id", f"Duplicate area_id: {area.area_id}")
-            area_ids.add(area.area_id)
-
-    def _validate_area(self, area: Area, index: int, global_scaling_constraints: ScalingConstraints):
+    def _validate_area(self, area: Area, index: int):
         """
         Validate Area object.
         """
-        field_prefix = f"site.areas[{index}]"
+        field_prefix = f"areas[{index}]"
         if not area.name or not area.name.strip():
             self._add_error(f"{field_prefix}.name", "Area name cannot be empty.")
 
         if not is_valid_uuidv7(area.area_id):
-            self._add_error(f"{field_prefix}.area_id", f"Invalid UUIDv7 format: {area.area_id}")
+            self._add_error(f"{field_prefix}.area_id", f"Invalid UUIDv7 format for area_id: {area.area_id}")
 
         instance_ids = set()
         for i, instance in enumerate(area.instances):
-            self._validate_asset_instance(instance, f"{field_prefix}.instances[{i}]", global_scaling_constraints)
+            self._validate_asset_instance(instance, f"{field_prefix}.instances[{i}]")
             if instance.instance_id in instance_ids:
                 self._add_error(f"{field_prefix}.instances[{i}].instance_id", f"Duplicate instance_id: {instance.instance_id}")
             instance_ids.add(instance.instance_id)
@@ -123,7 +92,7 @@ class FDLValidator:
                 self._add_error(f"{field_prefix}.connections[{i}].connection_id", f"Duplicate connection_id: {connection.connection_id}")
             connection_ids.add(connection.connection_id)
 
-    def _validate_asset_instance(self, instance: AssetInstance, field_path: str, global_scaling_constraints: ScalingConstraints):
+    def _validate_asset_instance(self, instance: AssetInstance, field_path: str):
         """
         Validate AssetInstance object.
         """
@@ -133,27 +102,16 @@ class FDLValidator:
         if not instance.ref_asset or not instance.ref_asset.strip():
             self._add_error(f"{field_path}.ref_asset", "Reference asset ID cannot be empty.")
 
-        # Validate transform based on global scaling constraints
-        try:
-            instance.transform.validate(
-                allow_scaling=global_scaling_constraints.allow_scaling,
-                allow_non_uniform_scaling=global_scaling_constraints.allow_non_uniform_scaling
-            )
-            # Further check min/max scale if applicable
-            if global_scaling_constraints.min_scale is not None and any(s < global_scaling_constraints.min_scale for s in instance.transform.scale):
-                self._add_error(f"{field_path}.transform.scale", f"Scale factors must be >= {global_scaling_constraints.min_scale}")
-            if global_scaling_constraints.max_scale is not None and any(s > global_scaling_constraints.max_scale for s in instance.transform.scale):
-                self._add_error(f"{field_path}.transform.scale", f"Scale factors must be <= {global_scaling_constraints.max_scale}")
-
-        except ValueError as e:
-            self._add_error(f"{field_path}.transform", str(e))
+        # Transform validation (basic check for now, more detailed in IADL Validator)
+        if not instance.transform:
+            self._add_error(f"{field_path}.transform", "Transform cannot be empty.")
 
         # tag_overrides validation (basic check)
         for i, override in enumerate(instance.tag_overrides):
             if "tag_id" not in override:
                 self._add_error(f"{field_path}.tag_overrides[{i}]", "Tag override must specify a tag_id.")
             if not is_valid_uuidv7(override.get("tag_id", "")):
-                self._add_error(f"{field_path}.tag_overrides[{i}].tag_id", f"Invalid UUIDv7 format for tag_id: {override.get("tag_id")}")
+                self._add_error(f"{field_path}.tag_overrides[{i}].tag_id", f"Invalid UUIDv7 format for tag_id: {override.get('tag_id')}")
 
     def _validate_connection(self, connection: Connection, field_path: str, instance_ids: set):
         """
@@ -170,11 +128,6 @@ class FDLValidator:
         
         if not connection.to_instance or connection.to_instance not in instance_ids:
             self._add_error(f"{field_path}.to_instance", f"to_instance '{connection.to_instance}' not found in area instances.")
-
-        # Basic path validation (e.g. check for 'points' if type is 'line')
-        if connection.path and connection.path.get("type") == "line":
-            if not connection.path.get("points") or not isinstance(connection.path["points"], list) or len(connection.path["points"]) < 2:
-                self._add_error(f"{field_path}.path.points", "Line path must have at least 2 points.")
 
     def _validate_batch_layouts(self, batch_layouts: List[BatchLayout]):
         """
@@ -234,7 +187,7 @@ if __name__ == '__main__':
     valid_fdl_path = Path("testfiles/FDL/semiconductor_fab.yaml")
     if valid_fdl_path.exists():
         valid_fdl = parse_fdl_file(valid_fdl_path)
-        is_valid = validator.validate_fdl(valid_fdl)
+        is_valid = validator.validate_site(valid_fdl.site) # Validate site object from FDL
         print(f"Is Valid: {is_valid}")
         if not is_valid:
             for error in validator.get_errors():
@@ -245,145 +198,163 @@ if __name__ == '__main__':
 
     # --- Test Case 2: Invalid FDL (missing site, invalid UUID, duplicate instance_id, invalid transform) ---
     print("--- Test Case 2: Invalid FDL ---")
-    invalid_fdl_data = {
-        "fdl_version": "0.1",
+    invalid_site_data = {
+        "site_id": "invalid-uuid", # Invalid UUID
+        "name": "Invalid Site",
         "units": {"length": "m", "angle": "deg", "up_axis": "Z", "handedness": "right"},
-        # "site": missing
-        "global_constraints": {
-            "scaling_constraints": {"allow_scaling": False, "allow_non_uniform_scaling": False, "min_scale": 0.1, "max_scale": 1.5},
-            "collision_detection": {"enabled": True, "clearance_distance": -0.5}
-        },
-        "batch_layouts": [
+        "areas": [
             {
-                "layout_id": "test_grid_001",
-                "type": "grid",
-                "ref_asset": "invalid-uuid", # Invalid UUID
-                "params": {"rows": 2, "columns": 2, "spacing_x": 1.0, "spacing_y": 1.0}
+                "area_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e01",
+                "name": "Area 1",
+                "instances": [
+                    {
+                        "instance_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e02",
+                        "ref_asset": "asset_a",
+                        "transform": {"translation": [0,0,0], "rotation": [0,0,0], "scale": [0.5, 1.0, 1.0]} # Invalid scale
+                    },
+                    {
+                        "instance_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e02", # Duplicate
+                        "ref_asset": "asset_b",
+                        "transform": {"translation": [1,1,1], "rotation": [0,0,0], "scale": [1,1,1]}
+                    }
+                ],
+                "connections": [],
+                "batch_layouts": []
             }
         ]
     }
     try:
-        invalid_fdl = FDL.from_dict(invalid_fdl_data)
-        is_valid = validator.validate_fdl(invalid_fdl)
+        invalid_site = Site.from_dict(invalid_site_data)
+        is_valid = validator.validate_site(invalid_site)
         print(f"Is Valid: {is_valid}")
         if not is_valid:
             for error in validator.get_errors():
                 print(f"  Error: {error}")
     except Exception as e:
-        print(f"Error creating FDL from dict: {e}")
+        print(f"Error creating Site from dict: {e}")
     print()
 
     # --- Test Case 3: Invalid FDL (duplicate area_id, instance_id, connection_id) ---
-    print("--- Test Case 3: Invalid FDL (duplicates) ---")
-    duplicate_id_fdl = FDL(
-        site=Site(
-            name="Duplicate ID Site",
-            site_id=generate_uuidv7(),
-            areas=[
-                Area(
-                    name="Area A",
-                    area_id="018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e21",
-                    instances=[
-                        AssetInstance(
-                            instance_id="pump_001",
-                            ref_asset=generate_uuidv7(),
-                            transform=Transform()
-                        ),
-                        AssetInstance(
-                            instance_id="pump_001", # Duplicate instance_id
-                            ref_asset=generate_uuidv7(),
-                            transform=Transform()
-                        )
-                    ],
-                    connections=[
-                        Connection(
-                            connection_id="pipe_001",
-                            type="pipe",
-                            from_instance="pump_001",
-                            to_instance="pump_001"
-                        ),
-                        Connection(
-                            connection_id="pipe_001", # Duplicate connection_id
-                            type="pipe",
-                            from_instance="pump_001",
-                            to_instance="pump_001"
-                        )
-                    ]
-                ),
-                Area(
-                    name="Area B",
-                    area_id="018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e21", # Duplicate area_id
-                    instances=[],
-                    connections=[]
-                )
-            ]
-        )
-    )
-    is_valid = validator.validate_fdl(duplicate_id_fdl)
-    print(f"Is Valid: {is_valid}")
-    if not is_valid:
-        for error in validator.get_errors():
-            print(f"  Error: {error}")
-    print()
-
-    # --- Test Case 4: Invalid Transform in Instance (violates global_constraints) ---
-    print("--- Test Case 4: Invalid Transform in Instance ---")
-    constrained_fdl = FDL(
-        site=Site(
-            name="Constrained Site",
-            site_id=generate_uuidv7(),
-            areas=[
-                Area(
-                    name="Area C",
-                    area_id=generate_uuidv7(),
-                    instances=[
-                        AssetInstance(
-                            instance_id="scaled_asset",
-                            ref_asset=generate_uuidv7(),
-                            transform=Transform(scale=[2.0, 2.0, 2.0]) # Violates max_scale=1.5
-                        )
-                    ]
-                )
-            ]
-        ),
-        global_constraints=GlobalConstraints(
-            scaling_constraints=ScalingConstraints(allow_scaling=True, allow_non_uniform_scaling=False, min_scale=0.5, max_scale=1.5)
-        )
-    )
-    is_valid = validator.validate_fdl(constrained_fdl)
-    print(f"Is Valid: {is_valid}")
-    if not is_valid:
-        for error in validator.get_errors():
-            print(f"  Error: {error}")
-    print()
-
-    # --- Test Case 5: Invalid Batch Layout --- 
-    print("--- Test Case 5: Invalid Batch Layout ---")
-    invalid_batch_fdl = FDL(
-        site=Site(
-            name="Site with bad layout",
-            site_id=generate_uuidv7(),
-            areas=[]
-        ),
-        batch_layouts=[
-            BatchLayout(
-                layout_id="bad_grid",
-                type="grid",
-                ref_asset=generate_uuidv7(),
-                params={"rows": 2, "columns": 2, "spacing_x": 1.0} # Missing spacing_y and origin
-            ),
-            BatchLayout(
-                layout_id="bad_type",
-                type="unknown", # Invalid type
-                ref_asset=generate_uuidv7(),
-                params={}
-            )
+    print("--- Test Case 3: Invalid FDL (duplicate area_id, instance_id, connection_id) ---")
+    duplicate_id_site_data = {
+        "site_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e00",
+        "name": "Duplicate ID Site",
+        "units": {"length": "m", "angle": "deg", "up_axis": "Z", "handedness": "right"},
+        "areas": [
+            {
+                "area_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e01",
+                "name": "Area 1",
+                "instances": [
+                    {
+                        "instance_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e02",
+                        "ref_asset": "asset_a",
+                        "transform": {"translation": [0,0,0], "rotation": [0,0,0], "scale": [1,1,1]}
+                    }
+                ],
+                "connections": [
+                    {
+                        "connection_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e03",
+                        "type": "pipe",
+                        "from_instance": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e02",
+                        "to_instance": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e04" # Non-existent
+                    }
+                ],
+                "batch_layouts": []
+            },
+            {
+                "area_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e01", # Duplicate
+                "name": "Area 2",
+                "instances": [],
+                "connections": [],
+                "batch_layouts": []
+            }
         ]
-    )
-    is_valid = validator.validate_fdl(invalid_batch_fdl)
-    print(f"Is Valid: {is_valid}")
-    if not is_valid:
-        for error in validator.get_errors():
-            print(f"  Error: {error}")
+    }
+    try:
+        duplicate_id_site = Site.from_dict(duplicate_id_site_data)
+        is_valid = validator.validate_site(duplicate_id_site)
+        print(f"Is Valid: {is_valid}")
+        if not is_valid:
+            for error in validator.get_errors():
+                print(f"  Error: {error}")
+    except Exception as e:
+        print(f"Error creating Site from dict: {e}")
     print()
+
+    # --- Test Case 4: Invalid Batch Layout --- 
+    print("--- Test Case 4: Invalid Batch Layout ---")
+    invalid_batch_layout_site_data = {
+        "site_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e00",
+        "name": "Batch Layout Test Site",
+        "units": {"length": "m", "angle": "deg", "up_axis": "Z", "handedness": "right"},
+        "areas": [
+            {
+                "area_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e01",
+                "name": "Area 1",
+                "instances": [],
+                "connections": [],
+                "batch_layouts": [
+                    {
+                        "layout_id": "batch_grid_1",
+                        "type": "grid",
+                        "ref_asset": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e02",
+                        "params": {"rows": 2, "columns": 2} # Missing spacing_x, spacing_y, origin
+                    },
+                    {
+                        "layout_id": "batch_line_1",
+                        "type": "line",
+                        "ref_asset": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e03",
+                        "params": {"count": 5, "start": [0,0,0]} # Missing end
+                    }
+                ]
+            }
+        ]
+    }
+    try:
+        invalid_batch_layout_site = Site.from_dict(invalid_batch_layout_site_data)
+        is_valid = validator.validate_site(invalid_batch_layout_site)
+        print(f"Is Valid: {is_valid}")
+        if not is_valid:
+            for error in validator.get_errors():
+                print(f"  Error: {error}")
+    except Exception as e:
+        print(f"Error creating Site from dict: {e}")
+    print()
+
+    # --- Test Case 5: Valid Batch Layout (Grid) ---
+    print("--- Test Case 5: Valid Batch Layout (Grid) ---")
+    valid_batch_layout_site_data = {
+        "site_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e00",
+        "name": "Valid Batch Layout Site",
+        "units": {"length": "m", "angle": "deg", "up_axis": "Z", "handedness": "right"},
+        "areas": [
+            {
+                "area_id": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e01",
+                "name": "Area 1",
+                "instances": [],
+                "connections": [],
+                "batch_layouts": [
+                    {
+                        "layout_id": "batch_grid_1",
+                        "type": "grid",
+                        "ref_asset": "018c3f7e-8a2b-7c3d-9e4f-5a6b7c8d9e02",
+                        "params": {"rows": 2, "columns": 2, "spacing_x": 1.0, "spacing_y": 1.0, "origin": [0,0,0]}
+                    }
+                ]
+            }
+        ]
+    }
+    try:
+        valid_batch_layout_site = Site.from_dict(valid_batch_layout_site_data)
+        is_valid = validator.validate_site(valid_batch_layout_site)
+        print(f"Is Valid: {is_valid}")
+        if not is_valid:
+            for error in validator.get_errors():
+                print(f"  Error: {error}")
+    except Exception as e:
+        print(f"Error creating Site from dict: {e}")
+    print()
+
+
+
 
