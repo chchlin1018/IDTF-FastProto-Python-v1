@@ -144,10 +144,10 @@ class Connection:
     """
     connection_id: str
     type: str
-    name: Optional[str] = None
     from_instance: str
-    from_port: Optional[str] = None
     to_instance: str
+    name: Optional[str] = None
+    from_port: Optional[str] = None
     to_port: Optional[str] = None
     path: Optional[Dict[str, Any]] = None # e.g., {"type": "line", "points": [[x,y,z], ...]}
     properties: Dict[str, Any] = field(default_factory=dict)
@@ -284,7 +284,12 @@ class FDL:
         if site_data:
             areas = []
             for area_data in site_data.get("areas", []):
-                instances = [AssetInstance(**inst_data) for inst_data in area_data.get("instances", [])]
+                instances = []
+                for inst_data in area_data.get("instances", []):
+                    # Convert transform dict to Transform object
+                    transform_data = inst_data.pop("transform", {})
+                    transform_obj = Transform.from_dict(transform_data)
+                    instances.append(AssetInstance(transform=transform_obj, **inst_data))
                 connections = [Connection(**conn_data) for conn_data in area_data.get("connections", [])]
                 areas.append(Area(
                     name=area_data["name"],
@@ -300,7 +305,37 @@ class FDL:
                 areas=areas
             )
         
-        batch_layouts = [BatchLayout(**layout_data) for layout_data in data.get("batch_layouts", [])]
+        batch_layouts = []
+        for layout_data in data.get("batch_layouts", []):
+            # Create a mutable copy of layout_data for processing
+            processed_layout_data = layout_data.copy()
+
+            # Extract direct fields for BatchLayout constructor
+            layout_id = processed_layout_data.pop("layout_id")
+            layout_type = processed_layout_data.pop("type")
+            ref_asset = processed_layout_data.pop("ref_asset")
+            naming_prefix = processed_layout_data.pop("naming_prefix", "Asset")
+            
+            # Create a mutable copy of layout_data for processing
+            processed_layout_data = layout_data.copy()
+
+            # Extract direct fields for BatchLayout constructor
+            layout_id = processed_layout_data.pop("layout_id")
+            layout_type = processed_layout_data.pop("type")
+            ref_asset = processed_layout_data.pop("ref_asset")
+            naming_prefix = processed_layout_data.pop("naming_prefix", "Asset")
+
+            # All remaining items in processed_layout_data are the parameters for 'params'.
+            # This assumes that any keys not explicitly popped out are part of params.
+            params_dict = processed_layout_data
+
+            batch_layouts.append(BatchLayout(
+                layout_id=layout_id,
+                type=layout_type,
+                ref_asset=ref_asset,
+                naming_prefix=naming_prefix,
+                params=params_dict
+            ))
 
         return cls(
             fdl_version=data.get("fdl_version", "0.1"),
