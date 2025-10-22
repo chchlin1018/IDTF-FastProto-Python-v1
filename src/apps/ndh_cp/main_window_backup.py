@@ -1,10 +1,3 @@
-"""
-NDH Control Panel - Main Window (Updated with Queue Manager)
-
-This file contains the updated main window with Queue Manager integration.
-To apply: mv main_window_updated.py main_window.py
-"""
-
 import sys
 from pathlib import Path
 from PySide6.QtWidgets import (
@@ -20,15 +13,12 @@ from ...core.eventbus.interfaces import IEventBus
 from ...core.eventbus.inmem import InMemoryEventBus
 from ...core.tsdb.interfaces import ITSDB
 from ...core.tsdb.sqlite_tsdb import SQLiteTSDB
-from ...core.queue.interfaces import QueueManager
-from ...core.queue.sqlite_queue import SQLiteQueueManager
 from ...core.runtime.mapping_svc import MappingService
 from ...core.runtime.ndh_service import NDHService
 
 from .event_monitor import EventMonitorWidget
 from .tsdb_viewer import TSDBViewerWidget
 from .tag_mapping_editor import TagMappingEditorWidget
-from .queue_monitor import QueueMonitorWidget
 
 
 class ServantControlWidget(QWidget):
@@ -58,38 +48,55 @@ class ServantControlWidget(QWidget):
         btn_layout = QHBoxLayout()
         self.load_iadl_btn = QPushButton("Load IADL Directory")
         self.load_iadl_btn.clicked.connect(self._load_iadl)
-        btn_layout.addWidget(self.load_iadl_btn)
-        
         self.load_fdl_btn = QPushButton("Load FDL File")
         self.load_fdl_btn.clicked.connect(self._load_fdl)
-        btn_layout.addWidget(self.load_fdl_btn)
-        
         self.generate_btn = QPushButton("Generate Servants")
         self.generate_btn.clicked.connect(self._generate_servants)
         self.generate_btn.setEnabled(False)
-        btn_layout.addWidget(self.generate_btn)
         
+        btn_layout.addWidget(self.load_iadl_btn)
+        btn_layout.addWidget(self.load_fdl_btn)
+        btn_layout.addWidget(self.generate_btn)
         fdl_layout.addLayout(btn_layout)
+        
         fdl_group.setLayout(fdl_layout)
         layout.addWidget(fdl_group)
         
         # Servant 控制區域
-        control_group = QGroupBox("Servant Controls")
+        control_group = QGroupBox("Servant Control")
         control_layout = QHBoxLayout()
         
         self.start_btn = QPushButton("Start All Servants")
         self.start_btn.clicked.connect(self._start_servants)
         self.start_btn.setEnabled(False)
-        control_layout.addWidget(self.start_btn)
         
         self.stop_btn = QPushButton("Stop All Servants")
         self.stop_btn.clicked.connect(self._stop_servants)
         self.stop_btn.setEnabled(False)
-        control_layout.addWidget(self.stop_btn)
         
+        self.status_label = QLabel("Status: Idle")
+        
+        control_layout.addWidget(self.start_btn)
+        control_layout.addWidget(self.stop_btn)
         control_layout.addStretch()
+        control_layout.addWidget(self.status_label)
+        
         control_group.setLayout(control_layout)
         layout.addWidget(control_group)
+        
+        # Servant 列表顯示
+        list_group = QGroupBox("Servants")
+        list_layout = QVBoxLayout()
+        
+        self.servant_tree = QTreeWidget()
+        self.servant_tree.setHeaderLabels(["Type", "ID", "Name", "Status", "Value"])
+        self.servant_tree.setColumnWidth(0, 100)
+        self.servant_tree.setColumnWidth(1, 200)
+        self.servant_tree.setColumnWidth(2, 200)
+        
+        list_layout.addWidget(self.servant_tree)
+        list_group.setLayout(list_layout)
+        layout.addWidget(list_group)
         
         # 統計資訊
         stats_layout = QHBoxLayout()
@@ -100,81 +107,67 @@ class ServantControlWidget(QWidget):
         stats_layout.addStretch()
         layout.addLayout(stats_layout)
         
-        # Servant 樹狀結構
-        self.servant_tree = QTreeWidget()
-        self.servant_tree.setHeaderLabels(["Name", "Type", "Status", "Value"])
-        self.servant_tree.setColumnWidth(0, 200)
-        self.servant_tree.setColumnWidth(1, 150)
-        self.servant_tree.setColumnWidth(2, 100)
-        layout.addWidget(self.servant_tree)
+        # 定時更新 Tag 值顯示
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self._update_tag_values)
         
-        # Auto-refresh timer for tag values
-        self.refresh_timer = QTimer()
-        self.refresh_timer.timeout.connect(self._update_tag_values)
-        self.refresh_timer.start(1000)  # Update every second
-    
+        self.iadl_loaded = False
+        self.fdl_loaded = False
+        
     def _load_iadl(self):
         """載入 IADL 目錄"""
         dir_path = QFileDialog.getExistingDirectory(
-            self,
-            "Select IADL Directory",
+            self, "Select IADL Directory", 
             str(Path.home())
         )
-        
         if dir_path:
             try:
                 self.ndh_service.load_iadl_assets(dir_path)
                 self.iadl_label.setText(f"IADL: {Path(dir_path).name}")
+                self.iadl_loaded = True
                 self._check_ready_to_generate()
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    f"Loaded {len(self.ndh_service.asset_library.assets)} IADL assets"
-                )
+                QMessageBox.information(self, "Success", 
+                    f"Loaded IADL assets from {dir_path}")
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to load IADL: {e}")
+                QMessageBox.critical(self, "Error", 
+                    f"Failed to load IADL assets: {str(e)}")
     
     def _load_fdl(self):
         """載入 FDL 檔案"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select FDL File",
+            self, "Open FDL File", 
             str(Path.home()),
-            "YAML Files (*.yaml *.yml);;All Files (*)"
+            "FDL Files (*.yaml *.yml *.json);;All Files (*)"
         )
-        
         if file_path:
             try:
                 self.ndh_service.load_fdl_from_file(file_path)
                 self.fdl_label.setText(f"FDL: {Path(file_path).name}")
+                self.fdl_loaded = True
                 self._check_ready_to_generate()
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    f"Loaded FDL: {self.ndh_service.fdl.site.name}"
-                )
+                QMessageBox.information(self, "Success", 
+                    f"Loaded FDL from {file_path}")
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to load FDL: {e}")
+                QMessageBox.critical(self, "Error", 
+                    f"Failed to load FDL: {str(e)}")
     
     def _check_ready_to_generate(self):
         """檢查是否可以生成 Servants"""
-        if self.ndh_service.fdl and self.ndh_service.asset_library:
+        if self.iadl_loaded and self.fdl_loaded:
             self.generate_btn.setEnabled(True)
     
     def _generate_servants(self):
-        """生成 Servants"""
+        """生成 Asset Servants 和 Tag Servants"""
         try:
             self.ndh_service.generate_servants()
             self._update_servant_tree()
-            self._update_stats()
             self.start_btn.setEnabled(True)
-            QMessageBox.information(
-                self,
-                "Success",
-                f"Generated {len(self.ndh_service.asset_servants)} Asset Servants"
-            )
+            self.status_label.setText("Status: Servants Generated")
+            QMessageBox.information(self, "Success", 
+                f"Generated {len(self.ndh_service.asset_servants)} Asset Servants")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to generate servants: {e}")
+            QMessageBox.critical(self, "Error", 
+                f"Failed to generate servants: {str(e)}")
     
     def _start_servants(self):
         """啟動所有 Servants"""
@@ -182,14 +175,12 @@ class ServantControlWidget(QWidget):
             self.ndh_service.start_all_servants()
             self.start_btn.setEnabled(False)
             self.stop_btn.setEnabled(True)
-            self._update_servant_tree()
-            QMessageBox.information(
-                self,
-                "Success",
-                f"Started {len(self.ndh_service.asset_servants)} Asset Servants"
-            )
+            self.status_label.setText("Status: Running")
+            self.update_timer.start(1000)  # 每秒更新一次
+            QMessageBox.information(self, "Success", "All servants started")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to start servants: {e}")
+            QMessageBox.critical(self, "Error", 
+                f"Failed to start servants: {str(e)}")
     
     def _stop_servants(self):
         """停止所有 Servants"""
@@ -197,190 +188,184 @@ class ServantControlWidget(QWidget):
             self.ndh_service.stop_all_servants()
             self.start_btn.setEnabled(True)
             self.stop_btn.setEnabled(False)
-            self._update_servant_tree()
-            QMessageBox.information(
-                self,
-                "Success",
-                f"Stopped {len(self.ndh_service.asset_servants)} Asset Servants"
-            )
+            self.status_label.setText("Status: Stopped")
+            self.update_timer.stop()
+            QMessageBox.information(self, "Success", "All servants stopped")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to stop servants: {e}")
+            QMessageBox.critical(self, "Error", 
+                f"Failed to stop servants: {str(e)}")
     
     def _update_servant_tree(self):
-        """更新 Servant 樹狀結構"""
+        """更新 Servant 樹狀顯示"""
         self.servant_tree.clear()
         
-        for asset_id, asset_servant in self.ndh_service.asset_servants.items():
-            # Asset Servant 節點
+        asset_count = 0
+        tag_count = 0
+        
+        for asset_servant in self.ndh_service.get_all_asset_servants():
+            # 創建 Asset Servant 節點
             asset_item = QTreeWidgetItem([
+                "Asset",
                 asset_servant.instance.instance_id,
                 asset_servant.asset_definition.name,
                 "Running" if asset_servant.is_running else "Stopped",
                 ""
             ])
             self.servant_tree.addTopLevelItem(asset_item)
+            asset_count += 1
             
-            # Tag Servant 子節點
+            # 添加 Tag Servant 子節點
             for tag_servant in asset_servant.get_all_tag_servants():
                 tag_item = QTreeWidgetItem([
+                    "Tag",
+                    tag_servant.tag_instance_id,
                     tag_servant.tag_definition.name,
-                    f"Tag ({tag_servant.tag_definition.kind.value})",
                     "Running" if tag_servant.is_running else "Stopped",
-                    str(tag_servant.get_value() or "N/A")
+                    str(tag_servant.current_value) if tag_servant.current_value is not None else "N/A"
                 ])
                 asset_item.addChild(tag_item)
-            
-            asset_item.setExpanded(True)
+                tag_count += 1
+        
+        self.servant_tree.expandAll()
+        
+        self.asset_count_label.setText(f"Asset Servants: {asset_count}")
+        self.tag_count_label.setText(f"Tag Servants: {tag_count}")
     
     def _update_tag_values(self):
         """更新 Tag 值顯示"""
-        if not self.ndh_service.is_running:
-            return
-        
-        # 遍歷樹狀結構更新 Tag 值
+        # 遍歷樹狀結構，更新 Tag 值
         for i in range(self.servant_tree.topLevelItemCount()):
             asset_item = self.servant_tree.topLevelItem(i)
-            asset_id = asset_item.text(0)
-            
-            if asset_id in self.ndh_service.asset_servants:
-                asset_servant = self.ndh_service.asset_servants[asset_id]
+            for j in range(asset_item.childCount()):
+                tag_item = asset_item.child(j)
+                tag_instance_id = tag_item.text(1)
                 
-                for j in range(asset_item.childCount()):
-                    tag_item = asset_item.child(j)
-                    tag_servants = asset_servant.get_all_tag_servants()
-                    if j < len(tag_servants):
-                        tag_servant = tag_servants[j]
-                        value = tag_servant.get_value()
-                        tag_item.setText(3, str(value) if value is not None else "N/A")
-    
-    def _update_stats(self):
-        """更新統計資訊"""
-        asset_count = len(self.ndh_service.asset_servants)
-        tag_count = len(self.ndh_service.get_all_tag_servants())
-        self.asset_count_label.setText(f"Asset Servants: {asset_count}")
-        self.tag_count_label.setText(f"Tag Servants: {tag_count}")
+                # 從 NDH Service 獲取對應的 Tag Servant
+                for asset_servant in self.ndh_service.get_all_asset_servants():
+                    for tag_servant in asset_servant.get_all_tag_servants():
+                        if tag_servant.tag_instance_id == tag_instance_id:
+                            value_str = str(tag_servant.current_value) if tag_servant.current_value is not None else "N/A"
+                            tag_item.setText(4, value_str)
+                            break
 
 
-class NDHControlPanelMainWindow(QMainWindow):
-    """NDH Control Panel 主視窗"""
-    
-    def __init__(self):
-        super().__init__()
+class NDHCpMainWindow(QMainWindow):
+    file_opened = Signal(str)
+    file_saved = Signal(str)
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
         self.setWindowTitle("NDH Control Panel - IDTF Fast Prototype v1")
         self.setGeometry(100, 100, 1400, 900)
-        
+
         # 創建核心服務
         self.event_bus: IEventBus = InMemoryEventBus()
         self.tsdb: ITSDB = SQLiteTSDB("ndh_test.db")
-        self.queue_manager: QueueManager = SQLiteQueueManager("ndh_queue.db")
         self.mapping_service = MappingService(self.tsdb)
         self.ndh_service = NDHService(
             event_bus=self.event_bus,
             tsdb=self.tsdb
         )
-        
+
         self._create_menu_bar()
         self._create_status_bar()
         self._create_central_widget()
-        
+
         self.current_file: Optional[str] = None
         self.is_dirty: bool = False
-    
-    def _create_menu_bar(self):
-        """創建菜單欄"""
-        menubar = self.menuBar()
-        
-        # File menu
-        file_menu = menubar.addMenu("&File")
-        
-        # Help menu
-        help_menu = menubar.addMenu("&Help")
+
+    def _create_menu_bar(self) -> None:
+        menu_bar = self.menuBar()
+
+        # File Menu
+        file_menu = menu_bar.addMenu("&File")
+        exit_action = file_menu.addAction("E&xit")
+        exit_action.triggered.connect(self.close)
+
+        # View Menu
+        view_menu = menu_bar.addMenu("&View")
+        refresh_action = view_menu.addAction("&Refresh")
+        refresh_action.triggered.connect(self._refresh_views)
+
+        # Help Menu
+        help_menu = menu_bar.addMenu("&Help")
         about_action = help_menu.addAction("&About")
         about_action.triggered.connect(self._show_about)
-    
-    def _create_status_bar(self):
-        """創建狀態欄"""
-        self.statusBar().showMessage("Ready")
-    
-    def _create_central_widget(self):
-        """創建中央部件"""
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        
-        # 使用分割器佈局
-        splitter = QSplitter(Qt.Horizontal)
+
+    def _create_status_bar(self) -> None:
+        self.statusBar = QStatusBar()
+        self.setStatusBar(self.statusBar)
+        self.statusBar.showMessage("Ready")
+
+    def _create_central_widget(self) -> None:
+        # 創建主分割器
+        main_splitter = QSplitter(Qt.Horizontal)
         
         # 左側：Servant 控制面板
         self.servant_control = ServantControlWidget(self.ndh_service)
-        splitter.addWidget(self.servant_control)
+        main_splitter.addWidget(self.servant_control)
         
-        # 右側：功能分頁
+        # 右側：Tab Widget
         self.tab_widget = QTabWidget()
         
-        # Event Monitor tab
         self.event_monitor = EventMonitorWidget(self.event_bus)
-        self.tab_widget.addTab(self.event_monitor, "Event Monitor")
-        
-        # TSDB Viewer tab
         self.tsdb_viewer = TSDBViewerWidget(self.tsdb)
-        self.tab_widget.addTab(self.tsdb_viewer, "TSDB Viewer")
-        
-        # Tag Mapping Editor tab
         self.tag_mapping_editor = TagMappingEditorWidget(self.mapping_service)
+
+        self.tab_widget.addTab(self.event_monitor, "Event Monitor")
+        self.tab_widget.addTab(self.tsdb_viewer, "TSDB Viewer")
         self.tab_widget.addTab(self.tag_mapping_editor, "Tag Mapping Editor")
         
-        # Queue Monitor tab (NEW)
-        self.queue_monitor = QueueMonitorWidget(self.queue_manager)
-        self.tab_widget.addTab(self.queue_monitor, "Queue Monitor")
+        main_splitter.addWidget(self.tab_widget)
         
-        splitter.addWidget(self.tab_widget)
+        # 設置分割比例
+        main_splitter.setSizes([500, 900])
         
-        # 設置分割器比例
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 2)
-        
-        # 設置中央部件佈局
-        layout = QVBoxLayout(central_widget)
-        layout.addWidget(splitter)
-    
-    def _show_about(self):
+        self.setCentralWidget(main_splitter)
+
+    def _refresh_views(self) -> None:
+        """刷新所有視圖"""
+        self.servant_control._update_servant_tree()
+        self.statusBar.showMessage("Views refreshed", 2000)
+
+    def _show_about(self) -> None:
         """顯示關於對話框"""
-        QMessageBox.about(
-            self,
-            "About NDH Control Panel",
+        QMessageBox.about(self, "About NDH Control Panel",
             "<h3>NDH Control Panel</h3>"
             "<p>IDTF Fast Prototype Python v1</p>"
-            "<p>Version: 1.0.0</p>"
-            "<p>Author: 林志錚 (Chih Cheng Lin, Michael Lin)</p>"
-            "<br>"
+            "<p>Neutral Data Hub Control Panel for managing Asset Servants and Tag Servants</p>"
             "<p><b>Features:</b></p>"
             "<ul>"
-            "<li>Load FDL and IADL assets</li>"
-            "<li>Generate and control Asset/Tag Servants</li>"
+            "<li>Load FDL and IADL files</li>"
+            "<li>Generate and manage Asset/Tag Servants</li>"
             "<li>Monitor events in real-time</li>"
             "<li>Query TSDB data</li>"
-            "<li>Monitor message queues</li>"
             "<li>Edit tag mappings</li>"
             "</ul>"
+            "<p>Author: 林志錚 (Chih Cheng Lin, Michael Lin)</p>"
         )
-    
-    def closeEvent(self, event):
-        """處理關閉事件"""
+
+    def closeEvent(self, event) -> None:
         # 停止所有 Servants
         if self.ndh_service.is_running:
-            self.ndh_service.stop_all_servants()
-        
-        event.accept()
-
-
-def main():
-    """主函數"""
-    app = QApplication(sys.argv)
-    window = NDHControlPanelMainWindow()
-    window.show()
-    sys.exit(app.exec())
+            reply = QMessageBox.question(self, "NDH Control Panel",
+                "Servants are still running. Stop them before exiting?",
+                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
+            
+            if reply == QMessageBox.Yes:
+                self.ndh_service.stop_all_servants()
+                event.accept()
+            elif reply == QMessageBox.No:
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
 
 
 if __name__ == "__main__":
-    main()
+    app = QApplication(sys.argv)
+    window = NDHCpMainWindow()
+    window.show()
+    sys.exit(app.exec())
 
