@@ -31,6 +31,7 @@ from .tag_mapping_editor import TagMappingEditorWidget
 from .queue_monitor import QueueMonitorWidget
 from .realtime_tag_monitor import RealtimeTagMonitorWidget
 from .asset_library_tree_view import AssetLibraryTreeView
+from .factory_layout_tree_view import FactoryLayoutTreeView
 
 
 class ServantControlWidget(QWidget):
@@ -339,9 +340,13 @@ class NDHControlPanelMainWindow(QMainWindow):
         self.realtime_tag_monitor = RealtimeTagMonitorWidget(self.ndh_service, self.tsdb)
         self.tab_widget.addTab(self.realtime_tag_monitor, "Realtime Tag Monitor")
         
-        # Asset Library Tree View tab (NEW)
+        # Asset Library Tree View tab
         self.asset_library_tree_view = AssetLibraryTreeView(self.ndh_service)
         self.tab_widget.addTab(self.asset_library_tree_view, "Asset Library")
+        
+        # Factory Layout Tree View tab (NEW)
+        self.factory_layout_tree_view = FactoryLayoutTreeView(self.ndh_service)
+        self.tab_widget.addTab(self.factory_layout_tree_view, "Factory Layout")
         
         splitter.addWidget(self.tab_widget)
         
